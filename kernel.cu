@@ -17,8 +17,8 @@
 #define A0 1.42
 #define NUM_THREADS 262144
 #define BLOCK_WIDTH 1024
-#define RESOLUTION 100
-#define ZRES 100
+#define RESOLUTION 3
+#define ZRES 3
 #define SMALL_Z 0.00001
 #define Z_MAX 20.0
 
@@ -258,6 +258,7 @@ int main(int argc, char **argv)
 	
 
 	printf("Time elapsed = %g ms\n", timer.Elapsed());
+	print_array(&pos_atomx[0], RESOLUTION)
 
 	// free GPU memory allocation and exit
 	cudaFree(d_pos_carbonx);
