@@ -17,8 +17,8 @@
 #define A0 1.42
 #define NUM_THREADS 262144
 #define BLOCK_WIDTH 1024
-#define RESOLUTION 3
-#define ZRES 3
+#define RESOLUTION 100
+#define ZRES 100
 #define SMALL_Z 0.00001
 #define Z_MAX 20.0
 
@@ -78,8 +78,6 @@ __global__ void potentialLJ(
 int main(int argc, char **argv)
 {
 	GpuTimer timer;
-	printf("%d total threads in %d blocks writing into %d array elements\n",
-		NUM_THREADS, NUM_THREADS / BLOCK_WIDTH, NUM_THREADS);
 	// declare variables
 	int numCarbons = NUM_THREADS;
 	int numx = NUMX;
@@ -94,6 +92,7 @@ int main(int argc, char **argv)
 	//////////////////////////////////////////////////////////////////////////////
 	float ax = A0 * (1.00 + (STRAIN * (1.0 - (3.0 * POISSON)) / 4.0)); // New Way
 	float ay = A0 * (1.00 + STRAIN);
+	float ay2 = (3.0/8.0)*A0*(4.0+(3.0*STRAIN)-(STRAIN*POISSON));
 	float d0 = sqrt((float)3.0) * ax;
 	// Create a vector object that contains numx elements.
 	std::vector<float> transx;
@@ -152,18 +151,18 @@ int main(int argc, char **argv)
 	//////////////////////////////////////////////////////////////////////////////
 
 	std::vector<float> pos_atomx;
-	for (int i = 0; i < RESOLUTION; ++i) {
-		pos_atomx.push_back(i*ax/(RESOLUTION-1));
+	for (int i = 0; i < RESOLUTION + 1; ++i) {
+		pos_atomx.push_back(i*d0/(2*(RESOLUTION)));
 	}
 
 	std::vector<float> pos_atomy;
-	for (int i = 0; i < RESOLUTION; ++i) {
-		pos_atomy.push_back(i*ay/(RESOLUTION-1));
+	for (int i = 0; i < RESOLUTION + 1; ++i) {
+		pos_atomy.push_back(i*ay2/(RESOLUTION));
 	}
 
 	std::vector<float> pos_atomz;
-	for (int i = 0; i < ZRES; ++i) {
-		pos_atomz.push_back(smallz + i*zmax/(RESOLUTION-1));
+	for (int i = 0; i < ZRES + 1; ++i) {
+		pos_atomz.push_back(smallz + i*zmax/(RESOLUTION));
 	}
 
 
@@ -213,6 +212,8 @@ int main(int argc, char **argv)
 	//////////////////////////////////////////////////////////////////////////////
 	// launch the kernel
 	//////////////////////////////////////////////////////////////////////////////
+	printf("%d total threads in %d blocks writing into %d array elements\n",
+		NUM_THREADS, NUM_THREADS / BLOCK_WIDTH, NUM_THREADS);	
 	timer.Start();
 	
 	for (int i = 0; i < RESOLUTION; ++i) {
@@ -247,7 +248,17 @@ int main(int argc, char **argv)
 
 	// End LOOP
 
-
+	
+	//std::ofstream xout("carbonx.txt");
+	//for (int i = 0; i < numCarbons; i++)
+	//{
+	//	xout << h_pos_carbonx[i] << std::endl; //writing ith character of array in the file
+	//}
+	//std::ofstream yout("carbony.txt");
+	//for (int i = 0; i < numCarbons; i++)
+	//{
+	//	yout << h_pos_carbony[i] << std::endl; //writing ith character of array in the file
+	//}
 
 	std::ofstream fout("out.txt");
 	for (int i = 0; i < RESOLUTION*RESOLUTION*ZRES; i++)
@@ -258,7 +269,9 @@ int main(int argc, char **argv)
 	
 
 	printf("Time elapsed = %g ms\n", timer.Elapsed());
-	print_array(&pos_atomx[0], RESOLUTION)
+	//print_array(&pos_atomx[0], RESOLUTION+1);
+	//print_array(&pos_atomy[0], RESOLUTION+1);
+	//print_array(&pos_atomz[0], ZRES+1);
 
 	// free GPU memory allocation and exit
 	cudaFree(d_pos_carbonx);
