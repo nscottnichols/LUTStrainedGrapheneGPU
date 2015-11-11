@@ -1,1 +1,4 @@
 This is a git repo for LUT project
+
+nvcc -ccbin /usr/bin/gcrnel.cu -o test.out -lstdc++
+
