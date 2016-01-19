@@ -19,7 +19,7 @@
 #define BLOCK_WIDTH 1024
 #define RESOLUTION 100
 #define ZRES 100
-#define SMALL_Z 0.00001
+#define SMALL_Z 0.000001
 #define Z_MAX 20.0
 
 
@@ -92,7 +92,40 @@ int main(int argc, char **argv)
 	//////////////////////////////////////////////////////////////////////////////
 	float ax = A0 * (1.00 + (STRAIN * (1.0 - (3.0 * POISSON)) / 4.0)); // New Way
 	float ay = A0 * (1.00 + STRAIN);
+
+
+
+
+
+
+	float ax0 = sqrt(3.0)*A0/2.0;
+	float ax2 = (sqrt(3.0)/8.0)*A0*(4.0+STRAIN-(3.0*STRAIN*POISSON));
 	float ay2 = (3.0/8.0)*A0*(4.0+(3.0*STRAIN)-(STRAIN*POISSON));
+	float dx = ax0/100.0;
+	int xres = ax2/dx;
+	int yres = ay2/dx;
+	int zres = zmax/dx;
+	dx = ax2/xres;
+	float dy = ay2/yres;
+	float dz = zmax/zres;
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 	float d0 = sqrt((float)3.0) * ax;
 	// Create a vector object that contains numx elements.
 	std::vector<float> transx;
@@ -151,18 +184,18 @@ int main(int argc, char **argv)
 	//////////////////////////////////////////////////////////////////////////////
 
 	std::vector<float> pos_atomx;
-	for (int i = 0; i < RESOLUTION + 1; ++i) {
-		pos_atomx.push_back(i*d0/(2*(RESOLUTION)));
+	for (float i = 0; i < xres + 1; ++i) {
+		pos_atomx.push_back(i*d0/(2*(xres)));
 	}
 
 	std::vector<float> pos_atomy;
-	for (int i = 0; i < RESOLUTION + 1; ++i) {
-		pos_atomy.push_back(i*ay2/(RESOLUTION));
+	for (float i = 0; i < yres + 1; ++i) {
+		pos_atomy.push_back(i*ay2/(yres));
 	}
 
 	std::vector<float> pos_atomz;
-	for (int i = 0; i < ZRES + 1; ++i) {
-		pos_atomz.push_back(smallz + i*zmax/(RESOLUTION));
+	for (float i = 0; i < zres + 1; ++i) {
+		pos_atomz.push_back(smallz + i*zmax/(zres));
 	}
 
 
@@ -174,12 +207,13 @@ int main(int argc, char **argv)
 	float* h_pos_atomx = &pos_atomx[0];
 	float* h_pos_atomy = &pos_atomy[0];
 	float* h_pos_atomz = &pos_atomz[0];
-	float h_potLJ[RESOLUTION*RESOLUTION*ZRES];
+	float h_potLJ[xres*yres*zres];
 	float h_potLJtemp[0];
 	const int CARBON_BYTES = NUM_THREADS * sizeof(float);
-	const int RES_BYTES = RESOLUTION * sizeof(float);
-	const int ZRES_BYTES = ZRES * sizeof(float);
-	const int POTLJ_BYTES = RESOLUTION * RESOLUTION * ZRES * sizeof(float);
+	const int XRES_BYTES = xres * sizeof(float);
+	const int YRES_BYTES = yres * sizeof(float);
+	const int ZRES_BYTES = zres * sizeof(float);
+	const int POTLJ_BYTES = xres * yres * zres * sizeof(float);
 	
 
 	memset(h_potLJ, 0.0, POTLJ_BYTES);
@@ -195,16 +229,16 @@ int main(int argc, char **argv)
 	float *d_potLJ;
 	cudaMalloc((void **)&d_pos_carbonx, CARBON_BYTES);
 	cudaMalloc((void **)&d_pos_carbony, CARBON_BYTES);
-	cudaMalloc((void **)&d_pos_atomx, RES_BYTES);
-	cudaMalloc((void **)&d_pos_atomy, RES_BYTES);
+	cudaMalloc((void **)&d_pos_atomx, XRES_BYTES);
+	cudaMalloc((void **)&d_pos_atomy, YRES_BYTES);
 	cudaMalloc((void **)&d_pos_atomz, ZRES_BYTES);
 	cudaMalloc((void **)&d_potLJ, sizeof(float));
 
 	// now copy data from host memory to device memory
 	cudaMemcpy((void *)d_pos_carbonx, (void *)h_pos_carbonx, CARBON_BYTES, cudaMemcpyHostToDevice);
 	cudaMemcpy((void *)d_pos_carbony, (void *)h_pos_carbony, CARBON_BYTES, cudaMemcpyHostToDevice);
-	cudaMemcpy((void *)d_pos_atomx, (void *)h_pos_atomx, RES_BYTES, cudaMemcpyHostToDevice);
-	cudaMemcpy((void *)d_pos_atomy, (void *)h_pos_atomy, RES_BYTES, cudaMemcpyHostToDevice);
+	cudaMemcpy((void *)d_pos_atomx, (void *)h_pos_atomx, XRES_BYTES, cudaMemcpyHostToDevice);
+	cudaMemcpy((void *)d_pos_atomy, (void *)h_pos_atomy, YRES_BYTES, cudaMemcpyHostToDevice);
 	cudaMemcpy((void *)d_pos_atomz, (void *)h_pos_atomz, ZRES_BYTES, cudaMemcpyHostToDevice);
 	cudaMemcpy((void *)d_potLJ, (void *)h_potLJtemp, sizeof(float), cudaMemcpyHostToDevice);
 
@@ -216,9 +250,9 @@ int main(int argc, char **argv)
 		NUM_THREADS, NUM_THREADS / BLOCK_WIDTH, NUM_THREADS);	
 	timer.Start();
 	
-	for (int i = 0; i < RESOLUTION; ++i) {
-		for (int j = 0; j < RESOLUTION; ++j){
-			for (int k = 0; k < ZRES; ++k){
+	for (int i = 0; i < xres; ++i) {
+		for (int j = 0; j < yres; ++j){
+			for (int k = 0; k < zres; ++k){
 
 	potentialLJ << <NUM_THREADS / BLOCK_WIDTH, BLOCK_WIDTH >> >(
 		epsilon,
@@ -237,7 +271,7 @@ int main(int argc, char **argv)
 
 	// copy back the array of sums from GPU and print
 	cudaMemcpy(h_potLJtemp, d_potLJ, sizeof(float), cudaMemcpyDeviceToHost);
-	h_potLJ[i * RESOLUTION * ZRES + j * ZRES + k] = h_potLJtemp[0];
+	h_potLJ[i * yres * zres + j * zres + k] = h_potLJtemp[0];
 
 	memset(h_potLJtemp, 0.0, sizeof(float));
 	cudaMemcpy((void *)d_potLJ, (void *)h_potLJtemp, sizeof(float), cudaMemcpyHostToDevice);
@@ -261,7 +295,14 @@ int main(int argc, char **argv)
 	//}
 
 	std::ofstream fout("out.txt");
-	for (int i = 0; i < RESOLUTION*RESOLUTION*ZRES; i++)
+	fout << dx << std::endl;
+	fout << dy << std::endl;
+	fout << dz << std::endl;
+	fout << xres << std::endl;
+	fout << yres << std::endl;
+	fout << zres << std::endl;
+
+	for (int i = 0; i < xres*yres*zres; i++)
 	{
 		fout << h_potLJ[i] << std::endl; //writing ith character of array in the file
 	}
@@ -269,9 +310,9 @@ int main(int argc, char **argv)
 	
 
 	printf("Time elapsed = %g ms\n", timer.Elapsed());
-	//print_array(&pos_atomx[0], RESOLUTION+1);
-	//print_array(&pos_atomy[0], RESOLUTION+1);
-	//print_array(&pos_atomz[0], ZRES+1);
+	//print_array(&pos_atomx[0], xres+1);
+	//print_array(&pos_atomy[0], yres+1);
+	//print_array(&pos_atomz[0], zres+1);
 
 	// free GPU memory allocation and exit
 	cudaFree(d_pos_carbonx);
